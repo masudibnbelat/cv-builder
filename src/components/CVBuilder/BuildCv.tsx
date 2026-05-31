@@ -50,7 +50,6 @@ const BuildCv = ({ data: propData, onBack }: BuildCvProps) => {
   const data: CvData | null = propData ?? lsData;
   const printRef = useRef<HTMLDivElement>(null);
 
-  /* ── pdf download ── */
   const handleDownload = async () => {
     if (!printRef.current || !data || downloading) return;
     setDownloading(true);
@@ -61,6 +60,8 @@ const BuildCv = ({ data: propData, onBack }: BuildCvProps) => {
 
       const A4W = 210;
       const A4H = 297;
+      const MARGIN_MM = 15;
+      const contentH = A4H - MARGIN_MM * 2;
 
       const dataUrl = await toPng(el, {
         cacheBust: true,
@@ -74,29 +75,61 @@ const BuildCv = ({ data: propData, onBack }: BuildCvProps) => {
         img.onload = () => r();
       });
 
-      const imgWmm = A4W;
+      const elH = el.offsetHeight;
       const imgHmm = (img.height / img.width) * A4W;
+      const scale = imgHmm / elH; // px → mm
+
+      // সব <tr> এর top/bottom position বের করো
+      const rows = Array.from(el.querySelectorAll("tr"));
+      const rowBounds = rows.map((tr) => {
+        const rect = tr.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        const topMm = (rect.top - elRect.top) * scale;
+        const bottomMm = (rect.bottom - elRect.top) * scale;
+        return { topMm, bottomMm };
+      });
+
+      // page break points বের করো — যেখানে row ভাঙবে সেখানে break
+      const breaks: number[] = [0]; // mm positions where each page starts
+      let pageEnd = contentH;
+      while (pageEnd < imgHmm) {
+        // এই page boundary তে কোনো row আছে কিনা দেখো
+        const cutRow = rowBounds.find(
+          (r) => r.topMm < pageEnd && r.bottomMm > pageEnd,
+        );
+        if (cutRow) {
+          // row শুরু হওয়ার আগে break দাও
+          breaks.push(cutRow.topMm);
+          pageEnd = cutRow.topMm + contentH;
+        } else {
+          breaks.push(pageEnd);
+          pageEnd += contentH;
+        }
+      }
+
       const pdf = new jsPDF({
         unit: "mm",
         format: "a4",
         orientation: "portrait",
       });
 
-      let y = 0;
-      let page = 0;
-      while (y < imgHmm) {
-        if (page > 0) pdf.addPage();
-        const srcY = (y / imgHmm) * img.height;
-        const srcH = Math.min((A4H / imgHmm) * img.height, img.height - srcY);
+      for (let i = 0; i < breaks.length; i++) {
+        if (i > 0) pdf.addPage();
+
+        const startMm = breaks[i];
+        const endMm = i + 1 < breaks.length ? breaks[i + 1] : imgHmm;
+        const sliceHmm = endMm - startMm;
+
+        const srcY = (startMm / imgHmm) * img.height;
+        const srcH = (sliceHmm / imgHmm) * img.height;
+
         const canvas = document.createElement("canvas");
         canvas.width = img.width;
         canvas.height = srcH;
         canvas.getContext("2d")!.drawImage(img, 0, -srcY);
+
         const pageUrl = canvas.toDataURL("image/jpeg", 0.96);
-        const phMm = (srcH / img.height) * imgHmm;
-        pdf.addImage(pageUrl, "JPEG", 0, 0, imgWmm, phMm);
-        y += A4H;
-        page++;
+        pdf.addImage(pageUrl, "JPEG", 0, MARGIN_MM, A4W, sliceHmm);
       }
 
       pdf.save(`${data.name?.trim() || "CV"}_CV.pdf`);
@@ -155,8 +188,8 @@ const BuildCv = ({ data: propData, onBack }: BuildCvProps) => {
   ).filter(([, v]) => (Array.isArray(v) ? v.length > 0 : Boolean(v)));
 
   return (
-    <div className="min-h-screen bg-(--color-bg) py-6 px-3 sm:px-4 transition-colors">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-(--color-bg) py-6 px-4 transition-colors overflow-x-auto">
+      <div className="w-225 mx-auto">
         {/* Action Bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           {onBack && (
@@ -164,7 +197,7 @@ const BuildCv = ({ data: propData, onBack }: BuildCvProps) => {
               onClick={onBack}
               className="flex items-center gap-2 text-sm text-(--color-gray) hover:text-(--color-text) border border-(--color-active-border) px-4 py-2 rounded-xl transition-all hover:bg-(--color-active-bg)"
             >
-              ← তথ্য সম্পাদনা করুন
+              ← Edit CV
             </button>
           )}
           <button
@@ -182,19 +215,19 @@ const BuildCv = ({ data: propData, onBack }: BuildCvProps) => {
             )}
           </button>
         </div>
-
         {/* ════════════════════════════════════════════════════════════════
             CV PAPER
             ════════════════════════════════════════════════════════════════ */}
+
         <div
           ref={printRef}
-          className="bg-white text-black font-serif text-[13px] leading-[1.35] px-12.5 py-7.5"
+          className="bg-white text-black font-serif text-[13px] leading-[1.35] px-12.5 py-7.5 w-225 shrink-0"
         >
           {/* ── BANNER: 3-layer purple bands ── */}
-          <div className="relative h-17.5 mt-10 mb-0">
+          <div className="relative h-17.5  mb-0">
             {/* Title text */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="font-[cursive] text-[42px] italic text-[#5a5d80] font-normal tracking-[1px] leading-none">
+              <span className="text-[42px] text-black font-bold tracking-[1px] leading-none">
                 Curriculum Vitae
               </span>
             </div>
@@ -354,44 +387,24 @@ const BuildCv = ({ data: propData, onBack }: BuildCvProps) => {
               </>
             )}
 
-            {/* PERSONAL DETAILS */}
-            {personalRows.length > 0 && (
-              <div>
-                <SectionTitle>Personal Details:</SectionTitle>
-                <div className="h-1" />
-                <table className="w-full border-separate border-spacing-y-1 text-sm">
-                  <tbody>
-                    {personalRows.map(([label, value]) => {
-                      const isDateOfBirth = label === "Date of birth";
-
-                      return (
-                        <Fragment key={label}>
-                          {isDateOfBirth && (
-                            <tr>
-                              <td colSpan={2} className="h-28" />
-                            </tr>
-                          )}
-
-                          <tr>
-                            <td className="bg-[#e9ebee] px-3.5 py-2 text-right text-[#5b9bd5] w-[32%] align-top">
-                              {label} :
-                            </td>
-                            <td className="bg-[#e9ebee] px-3.5 py-2 text-black align-top">
-                              {Array.isArray(value)
-                                ? value.map((line, i) => (
-                                    <div key={i}>{line}</div>
-                                  ))
-                                : value}
-                            </td>
-                          </tr>
-                        </Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                <Spacer />
-              </div>
-            )}
+            <table className="w-full border-separate border-spacing-y-1 text-sm">
+              <tbody>
+                {personalRows.map(([label, value]) => (
+                  <Fragment key={label}>
+                    <tr>
+                      <td className="bg-[#e9ebee] px-3.5 py-2 text-right text-[#5b9bd5] w-[32%] align-top">
+                        {label} :
+                      </td>
+                      <td className="bg-[#e9ebee] px-3.5 py-2 text-black align-top">
+                        {Array.isArray(value)
+                          ? value.map((line, i) => <div key={i}>{line}</div>)
+                          : value}
+                      </td>
+                    </tr>
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
 
             {/* LANGUAGE */}
             {data.languages.some((l) => l.language) && (
@@ -461,7 +474,6 @@ const BuildCv = ({ data: propData, onBack }: BuildCvProps) => {
             </div>
           </div>
         </div>
-
         {/* Bottom download */}
         <div className="mt-6 pb-8">
           <button
@@ -475,7 +487,7 @@ const BuildCv = ({ data: propData, onBack }: BuildCvProps) => {
                 PDF তৈরি হচ্ছে...
               </span>
             ) : (
-              <>⬇ {data.name ? `${data.name}_CV.pdf` : "CV.pdf"} ডাউনলোড করুন</>
+              <span>⬇ CV Download</span>
             )}
           </button>
         </div>

@@ -677,9 +677,9 @@ const AddCv = ({ onPreview }: AddCvProps) => {
           <div className="pb-8">
             <button
               onClick={() => onPreview?.(data)}
-              className="w-full bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 text-sm tracking-wide"
+              className="w-full bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-4 rounded-lg shadow-lg  transition-all hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 text-sm tracking-wide"
             >
-              CV প্রিভিউ দেখুন →
+              CV Preview →
             </button>
           </div>
         </div>

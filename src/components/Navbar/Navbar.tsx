@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Menu, X, Home, FileText, Mail, FilePenLine } from "lucide-react";
+import { Menu, X, Home, FileText, FilePenLine } from "lucide-react";
 import { usePathname } from "next/navigation";
 import ThemeToggle from "./ThemeToggle";
 
@@ -18,11 +18,11 @@ const navItems = [
     href: "/cv-builder",
     icon: FileText,
   },
-  {
-    label: "Contact",
-    href: "/contact",
-    icon: Mail,
-  },
+  // {
+  //   label: "Contact",
+  //   href: "/contact",
+  //   icon: Mail,
+  // },
 ];
 
 const Navbar = () => {
